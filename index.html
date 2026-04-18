@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Mini Asphalt</title>
+<style>
+body { margin:0; overflow:hidden; background:black; }
+
+#road {
+  width:300px;
+  height:100vh;
+  background:gray;
+  margin:auto;
+  position:relative;
+  overflow:hidden;
+}
+
+#line {
+  width:10px;
+  height:100px;
+  background:white;
+  position:absolute;
+  left:145px;
+  animation: move 1s linear infinite;
+}
+
+@keyframes move {
+  0% { top:-100px; }
+  100% { top:100vh; }
+}
+
+#car {
+  width:50px;
+  height:90px;
+  background:red;
+  position:absolute;
+  bottom:20px;
+  left:125px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="road">
+  <div id="line"></div>
+  <div id="car"></div>
+</div>
+
+<script>
+let car = document.getElementById("car");
+let x = 125;
+
+document.addEventListener("keydown", (e) => {
+  if(e.key === "ArrowLeft" && x > 0) x -= 20;
+  if(e.key === "ArrowRight" && x < 250) x += 20;
+  car.style.left = x + "px";
+});
+</script>
+
+</body>
+</html>
