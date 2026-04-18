@@ -1,0 +1,323 @@
+using UnityEngine;
+
+public class CarController : MonoBehaviour
+{
+    [Header("Wheels Colliders")]
+    public WheelCollider frontLeft;
+    public WheelCollider frontRight;
+    public WheelCollider backLeft;
+    public WheelCollider backRight;
+
+    [Header("Settings")]
+    public float motorForce = 1500f;
+    public float breakForce = 3000f;
+    public float maxSteerAngle = 30f;
+
+    private float horizontalInput;
+    private float verticalInput;
+    private bool isBreaking;
+
+    void FixedUpdate()
+    {
+        GetInput();
+        HandleMotor();
+        HandleSteering();
+    }
+
+    void GetInput()
+    {
+        horizontalInput = Input.GetAxis("Horizontal"); // A/D या Left/Right
+        verticalInput = Input.GetAxis("Vertical");     // W/S या Up/Down
+        isBreaking = Input.GetKey(KeyCode.Space);      // Space for Brake
+    }
+
+    void HandleMotor()
+    {
+        // पिछले पहियों में जान डालना (RWD)
+        backLeft.motorTorque = verticalInput * motorForce;
+        backRight.motorTorque = verticalInput * motorForce;
+
+        float currentbreakForce = isBreaking ? breakForce : 0f;
+        ApplyBreaking(currentbreakForce);
+    }
+
+    void ApplyBreaking(float force)
+    {
+        frontLeft.brakeTorque = force;
+        frontRight.brakeTorque = force;
+        backLeft.brakeTorque = force;
+        backRight.brakeTorque = force;
+    }
+
+    void HandleSteering()
+    {
+        float currentSteerAngle = maxSteerAngle * horizontalInput;
+        frontLeft.steerAngle = currentSteerAngle;
+        frontRight.steerAngle = currentSteerAngle;
+    }
+public float nitroMultiplier = 2f;
+public bool nitroActive = false;
+
+void HandleNitro()
+{
+    if (Input.GetKey(KeyCode.LeftShift))
+    {
+        backLeft.motorTorque *= nitroMultiplier;
+        backRight.motorTorque *= nitroMultiplier;
+        nitroActive = true;
+    }
+    else
+    {
+        nitroActive = false;
+    }
+}
+public class CameraFollow : MonoBehaviour
+{
+    public Transform carTarget; // यहाँ अपनी कार को ड्रैग करें
+    public Vector3 offset = new Vector3(0, 3, -7);
+    public float followSpeed = 10f;
+    public float lookSpeed = 10f;
+
+    void FixedUpdate()
+    {
+        // पोजीशन फॉलो करना
+        Vector3 targetPos = carTarget.TransformPoint(offset);
+        transform.position = Vector3.Lerp(transform.position, targetPos, followSpeed * Time.deltaTime);
+
+        // कार की तरफ देखना
+        var direction = carTarget.position - transform.position;
+        var rotation = Quaternion.LookRotation(direction, Vector3.up);
+        transform.rotation = Quaternion.Lerp(transform.rotation, rotation, lookSpeed * Time.deltaTime);
+    }
+}
+using UnityEngine;
+using System.Collections.Generic;
+
+public class AICarDrive : MonoBehaviour
+{
+    public Transform path; // यहाँ वो Folder डालें जिसमें सारे Waypoints हैं
+    public float maxSteerAngle = 40f;
+    public float motorForce = 1000f;
+    public WheelCollider frontLeft, frontRight;
+    
+    private List<Transform> nodes;
+    private int currentNode = 0;
+
+    void Start()
+    {
+        // ट्रैक के सभी पॉइंट्स को लिस्ट में भरें
+        Transform[] pathTransforms = path.GetComponentsInChildren<Transform>();
+        nodes = new List<Transform>();
+
+        for (int i = 0; i < pathTransforms.Length; i++)
+        {
+            if (pathTransforms[i] != path.transform)
+            {
+                nodes.Add(pathTransforms[i]);
+            }
+        }
+    }
+
+    void FixedUpdate()
+    {
+        ApplySteer();
+        Drive();
+        CheckWaypointDistance();
+    }
+
+    void ApplySteer()
+    {
+        // अगले पॉइंट की तरफ मुड़ने का लॉजिक
+        Vector3 relativeVector = transform.InverseTransformPoint(nodes[currentNode].position);
+        float newSteer = (relativeVector.x / relativeVector.magnitude) * maxSteerAngle;
+        frontLeft.steerAngle = newSteer;
+        frontRight.steerAngle = newSteer;
+    }
+
+    void Drive()
+    {
+        // कार को आगे बढ़ाना
+        frontLeft.motorTorque = motorForce;
+        frontRight.motorTorque = motorForce;
+    }
+
+    void CheckWaypointDistance()
+    {
+        // अगर कार पॉइंट के करीब पहुँच जाए, तो अगले पॉइंट की तरफ बढ़ें
+        if (Vector3.Distance(transform.position, nodes[currentNode].position) < 5f)
+        {
+            if (currentNode == nodes.Count - 1)
+                currentNode = 0; // ट्रैक खत्म होने पर फिर से शुरू करें
+            else
+                currentNode++;
+        }
+    }using UnityEngine;
+
+public class NitroSystem : MonoBehaviour
+{
+    public CarController carController; // आपकी कार की स्क्रिप्ट
+    public ParticleSystem nitroParticles; // साइलेंसर वाली आग
+    public float nitroPower = 2000f; // नाइट्रो की ताकत
+    public float normalPower = 1000f; // नॉर्मल ताकत
+    
+    private bool isNitroActive = false;
+
+    void Update()
+    {
+        // जब प्लेयर 'Left Shift' दबाकर रखेगा
+        if (Input.GetKeyDown(KeyCode.LeftShift))
+        {
+            StartNitro();
+        }
+
+        // जब 'Left Shift' छोड़ देगा
+        if (Input.GetKeyUp(KeyCode.LeftShift))
+        {
+            StopNitro();
+        }
+    }
+
+    void StartNitro()
+    {
+        isNitroActive = true;
+        carController.motorForce = nitroPower; // स्पीड बढ़ाना
+        
+        if (nitroParticles != null)
+        {
+            nitroParticles.Play(); // आग शुरू करना
+        }
+        
+        // कैमरा थोड़ा पीछे खींचने के लिए (Asphalt जैसा इफेक्ट)
+        Camera.main.fieldOfView = 80f; 
+    }
+
+    void StopNitro()
+    {
+        isNitroActive = false;
+        carController.motorForce = normalPower; // स्पीड वापस नॉर्मल करना
+        
+        if (nitroParticles != null)
+        {
+            nitroParticles.Stop(); // आग बंद करना
+        }
+        
+        Camera.main.fieldOfView = 60f; // कैमरा नॉर्मल करना
+    }using UnityEngine;
+using TMPro; // नंबर दिखाने के लिए
+using UnityEngine.UI;
+
+public class Speedometer : MonoBehaviour
+{
+    public Rigidbody carRigidbody; // आपकी कार का Rigidbody
+    public TextMeshProUGUI speedText; // स्पीड वाला टेक्स्ट
+    public RectTransform needle; // सुई वाली इमेज का Transform
+
+    public float maxSpeed = 200f; // गेम की टॉप स्पीड
+    public float minNeedleAngle = 0f; // सुई का शुरुआती एंगल
+    public float maxNeedleAngle = -220f; // सुई का आख़िरी एंगल
+
+    private float currentSpeed;
+
+    void Update()
+    {
+        // 1. स्पीड कैलकुलेट करना (m/s से km/h में बदलने के लिए 3.6 से गुणा करें)
+        currentSpeed = carRigidbody.velocity.magnitude * 3.6f;
+
+        // 2. टेक्स्ट अपडेट करना
+        speedText.text = currentSpeed.ToString("0") + " KM/H";
+
+        // 3. सुई को घुमाना (Asphalt जैसा फील)
+        UpdateNeedle();
+    }
+
+    void UpdateNeedle()
+    {
+        // सुई के रोटेशन को स्पीड के हिसाब से मैप करना
+        float speedFraction = currentSpeed / maxSpeed;
+        float needleAngle = Mathf.Lerp(minNeedleAngle, maxNeedleAngle, speedFraction);
+        
+        needle.rotation = Quaternion.Euler(0, 0, needleAngle);
+    }public TextMeshProUGUI gearText;
+private int currentGear;
+
+void CalculateGear()
+{
+    // एक साधारण लॉजिक: हर 40 km/h पर गियर बदलना
+    currentGear = Mathf.FloorToInt(currentSpeed / 40) + 1;
+    if (currentGear > 6) currentGear = 6; // मैक्सिमम 6 गियर
+    
+    gearText.text = "GEAR: " + currentGear.ToString();
+}
+      using UnityEngine;
+using TMPro; // जीतने के मैसेज के लिए
+
+public class FinishLine : MonoBehaviour
+{
+    public GameObject victoryPanel; // UI पैनल जो जीतने पर दिखेगा
+    public TextMeshProUGUI resultText;
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            victoryPanel.SetActive(true);
+            resultText.text = "YOU WIN!";
+            Time.timeScale = 0.2f; // गेम को स्लो मोशन में कर देना (Asphalt स्टाइल)
+        }
+        else if (other.CompareTag("AI"))
+        {
+            victoryPanel.SetActive(true);
+            resultText.text = "AI WON! BETTER LUCK NEXT TIME";
+        }
+    }using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class CarSelection : MonoBehaviour
+{
+    public GameObject[] cars; // अपनी सभी कारों को यहाँ ड्रैग करें
+    private int currentCarIndex = 0;
+
+    void Start()
+    {
+        // शुरुआत में पहली कार दिखाएँ, बाकी छुपा दें
+        UpdateGarage();
+    }
+
+    public void NextCar()
+    {
+        cars[currentCarIndex].SetActive(false);
+        currentCarIndex = (currentCarIndex + 1) % cars.Length;
+        cars[currentCarIndex].SetActive(true);
+    }
+
+    public void PreviousCar()
+    {
+        cars[currentCarIndex].SetActive(false);
+        currentCarIndex--;
+        if (currentCarIndex < 0) currentCarIndex = cars.Length - 1;
+        cars[currentCarIndex].SetActive(true);
+    }
+
+    public void StartRace()
+    {
+        // चुनी हुई कार का इंडेक्स सेव करें ताकि रेस वाले सीन में वही कार आए
+        PlayerPrefs.SetInt("SelectedCar", currentCarIndex);
+        SceneManager.LoadScene("RacingTrackScene");
+    }
+
+    void UpdateGarage()
+    {
+        foreach (GameObject car in cars) car.SetActive(false);
+        cars[currentCarIndex].SetActive(true);
+    }
+}
+          
+}
+          
+}
+          
+}
+      
+}
+                            
+
