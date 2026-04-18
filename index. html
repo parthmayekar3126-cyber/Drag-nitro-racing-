@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nitro Drag Racer Pro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="raceCanvas"></canvas>
+        <div id="ui-layer">
+            <div id="speedo">Speed: 0 km/h</div>
+            <div id="nitro-bar">Nitro: 100%</div>
+            <button id="start-btn">Race Start!</button>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
+
+body { margin: 0; background: #222; overflow: hidden; font-family: sans-serif; }
+#game-container { position: relative; width: 100vw; height: 100vh; }
+canvas { display: block; background: #333; } /* Road Color */
+#ui-layer { 
+    position: absolute; top: 20px; left: 20px; 
+    color: white; font-weight: bold; text-shadow: 2px 2px black;
+}
+#nitro-bar { width: 200px; height: 20px; background: blue; border: 2px solid white; }
+#start-btn { padding: 10px 20px; cursor: pointer; background: red; color: white; border: none; }
+
+const canvas = document.getElementById('raceCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let gameSpeed = 0;
+let level = 1;
+let racing = false;
+
+// Car Object Template
+class Car {
+    constructor(y, color, isPlayer, aiSpeed) {
+        this.x = 50;
+        this.y = y;
+        this.width = 60;
+        this.height = 30;
+        this.color = color;
+        this.speed = 0;
+        this.isPlayer = isPlayer;
+        this.aiSpeed = aiSpeed;
+        this.nitro = 100;
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+
+    update() {
+        if (!racing) return;
+
+        if (this.isPlayer) {
+            this.x += this.speed;
+        } else {
+            // AI logic: Random speed variability + Level difficulty
+            this.x += this.aiSpeed + (level * 0.5);
+        }
+    }
+}
+
+// 6 Cars create karein
+let cars = [
+    new Car(100, 'red', true, 0),    // Player
+    new Car(170, 'blue', false, 4),  // AI 1
+    new Car(240, 'green', false, 4.2),// AI 2
+    new Car(310, 'yellow', false, 3.8),// AI 3
+    new Car(380, 'purple', false, 4.5),// AI 4
+    new Car(450, 'orange', false, 4.1) // AI 5
+];
+
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw Finish Line
+    ctx.fillStyle = "white";
+    ctx.fillRect(canvas.width - 100, 0, 20, canvas.height);
+
+    cars.forEach(car => {
+        car.update();
+        car.draw();
+
+        // Check for Winner
+        if (car.x > canvas.width - 100) {
+            racing = false;
+            if (car.isPlayer) {
+                alert("You Won! Level " + level + " Complete.");
+                level++; // Difficulty badhti jayegi
+                resetRace();
+            } else {
+                alert("Robot Won! Try Again.");
+                resetRace();
+            }
+        }
+    });
+
+    requestAnimationFrame(animate);
+}
+
+function resetRace() {
+    cars.forEach(car => car.x = 50);
+}
+
+// Controls
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && racing) {
+        cars[0].speed += 0.5; // Nitro/Acceleration boost
+    }
+});
+
+document.getElementById('start-btn').onclick = () => { racing = true; animate(); };
+
