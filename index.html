@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=landscape">
+    <title>Asphalt Pro: Landscape Mobile</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: white; -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; outline: none; }
+        #canvas-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+        
+        /* Landscape Warning */
+        #landscape-msg { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; color: yellow; font-size: 24px; text-align: center; }
+        
+        /* UI HUD */
+        #ui { position: absolute; top: 10px; right: 10px; z-index: 50; pointer-events: none; }
+        .hud { background: rgba(0,0,0,0.7); color: lime; padding: 12px; border-radius: 8px; margin-bottom: 8px; font-weight: bold; border-left: 5px solid lime; }
+        #speedometer { position: absolute; bottom: 20px; right: 120px; color: #fff; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; border: 3px solid lime; text-align: center; }
+
+        /* Story & Menu Overlay */
+        #menu { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: radial-gradient(circle, #222, #000); 
+                display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; }
+        #story-box { max-width: 60%; background: rgba(0,255,0,0.05); padding: 25px; border-radius: 15px; border: 2px solid lime; margin-bottom: 20px; box-shadow: 0 0 20px rgba(0,255,0,0.3); }
+        h1 { color: lime; letter-spacing: 6px; text-shadow: 0 0 10px #0f0; }
+        #btn-play { padding: 18px 60px; font-size: 22px; background: lime; color: black; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; box-shadow: 0 5px 15px rgba(0, 255, 0, 0.4); }
+        
+        canvas { display: block; }
+    </style>
+</head>
+<body onorientationchange="checkOrientation()">
+
+<div id="landscape-msg">Please rotate your device to LANDSCAPE MODE (Bada Kijiye) to play!</div>
+
+<div id="canvas-container">
+    <div id="ui">
+        <div class="hud" id="lvl-txt">LEVEL 1</div>
+        <div class="hud" id="coin-txt">CASH: $0</div>
+    </div>
+    
+    <div id="speedometer">
+        <div id="spd-num" style="font-size: 30px;">0</div>
+        <div>KM/H</div>
+    </div>
+
+    <div id="menu">
+        <h1>ASPHALT PRO 3D</h1>
+        <div id="story-box">
+            <p id="story-text" style="color:#ccc;">Loading mission details... Story Level 1</p>
+        </div>
+        <button id="btn-play">ENGAGE</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    // --- Orientation Check ---
+    function checkOrientation() {
+        if (window.innerWidth < window.innerHeight) {
+            document.getElementById('landscape-msg').style.display = 'flex';
+            if(isRacing) isRacing = false;
+        } else {
+            document.getElementById('landscape-msg').style.display = 'none';
+        }
+    }
+    checkOrientation();
+
+    // --- 3D Engine Setup ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    // Light
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(0, 10, 0);
+    scene.add(sun);
+
+    // 3D Road with Lines
+    const roadGeo = new THREE.PlaneGeometry(30, 10000);
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+    const road = new THREE.Mesh(roadGeo, roadMat);
+    road.rotation.x = -Math.PI / 2;
+    scene.add(road);
+
+    for(let i=0; i<100; i++) {
+        const lineGeo = new THREE.PlaneGeometry(1, 10);
+        const line = new THREE.Mesh(lineGeo, new THREE.MeshStandardMaterial({ color: 0xffffff }));
+        line.rotation.x = -Math.PI / 2;
+        line.position.set(0, 0.01, -i * 50);
+        scene.add(line);
+    }
+
+    // --- Cars Setup (Total 6 Detailed Cars) ---
+    const carList = [];
+    let playerMesh;
+    const carColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+
+    function createDetailedCar(color) {
+        const group = new THREE.Group();
+        
+        // Body (Detailed Shape)
+        const bodyGeo = new THREE.BoxGeometry(1.8, 0.6, 3.5);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: color });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 0.5;
+        group.add(body);
+
+        // Cabin (Detailed)
+        const cabinGeo = new THREE.BoxGeometry(1.4, 0.5, 1.8);
+        const cabin = new THREE.Mesh(cabinGeo, new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        cabin.position.set(0, 0.9, -0.2);
+        group.add(cabin);
+
+        // Wheels (Detailed Rotatable)
+        const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 16);
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        
+        const wheelData = [ {x:-1.1, z:-1.1}, {x:1.1, z:-1.1}, {x:-1.1, z:1.1}, {x:1.1, z:1.1} ];
+        wheelData.forEach(pos => {
+            const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.position.set(pos.x, 0.4, pos.z);
+            group.add(wheel);
+        });
+
+        // Headlights
+        const lightGeo = new THREE.SphereGeometry(0.15);
+        const lightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff });
+        const leftL = new THREE.Mesh(lightGeo, lightMat);
+        leftL.position.set(-0.6, 0.6, -1.8);
+        group.add(leftL);
+        const rightL = leftL.clone();
+        rightL.position.x = 0.6;
+        group.add(rightL);
+
+        // Spoiler
+        const wing = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.6), bodyMat);
+        wing.position.set(0, 1.1, 1.5);
+        group.add(wing);
+
+        return group;
+    }
+
+    // Spawn 6 Cars
+    for(let i=0; i<6; i++) {
+        const car = createDetailedCar(carColors[i]);
+        car.position.set(-10 + (i * 4), 0, 0); // Lane assignment
+        if(i === 0) {
+            playerMesh = car;
+        } else {
+            carList.push({ mesh: car, speed: 0.8 + Math.random() * 0.2 });
+        }
+        scene.add(car);
+    }
+
+    camera.position.set(0, 4, 12);
+
+    // --- Game Logic & Controls ---
+    let level = 1;
+    let cash = 0;
+    let isRacing = false;
+    let speed = 0;
+    let tiltX = 0;
+    let isAccelerating = false;
+    let isBraking = false;
+
+    const stories = [ "Mission 1: Sheher ke Neon Circuit par 5 opponents ke saath high speed race!", "Mission 2: Police tumhare peeche hai. 300 km/h tak pahuncho!", "Mission 3: Robot racers block kar rahe hain. Coins collect karke Nitro boost lo!" ];
+
+    function updateMenu() {
+        document.getElementById('story-text').innerText = stories[level-1] || `Next Mission: LEVEL ${level}. Final stretch. All or nothing!`;
+        document.getElementById('lvl-txt').innerText = `LEVEL ${level}`;
+        document.getElementById('coin-txt').innerText = `CASH: $${cash}`;
+    }
+
+    // Gyro/Tilt Control
+    window.addEventListener('deviceorientation', (e) => {
+        tiltX = e.gamma / 12; // Adjusted sensitivity for landscape
+    });
+
+    // Touch Controls (L/R Screen)
+    document.addEventListener('touchstart', (e) => {
+        if(!isRacing) return;
+        if(e.touches[0].clientX < window.innerWidth / 2) {
+            isBraking = true;
+        } else {
+            isAccelerating = true;
+        }
+    });
+
+    document.addEventListener('touchend', (e) => {
+        isBraking = false;
+        isAccelerating = false;
+    });
+
+    document.getElementById('btn-play').onclick = () => {
+        document.getElementById('menu').style.display = 'none';
+        isRacing = true;
+        speed = 0.5 + (level * 0.1);
+    };
+
+    function resetGame() {
+        speed = 0;
+        playerMesh.position.z = 0;
+        carList.forEach(c => c.mesh.position.z = 0);
+        updateMenu();
+        document.getElementById('menu').style.display = 'flex';
+    }
+
+    // --- Main Animation Loop ---
+    function animate() {
+        requestAnimationFrame(animate);
+        if(isRacing && window.innerWidth > window.innerHeight) { // Landscape only
+            
+            // Speed logic
+            let maxSpeed = 1.0 + (level * 0.2);
+            
+            if(isAccelerating) {
+                if(speed < maxSpeed) speed += 0.02;
+            } else if(isBraking) {
+                if(speed > 0) speed -= 0.05;
+                if(speed < 0) speed = 0;
+            } else {
+                if(speed > 0) speed -= 0.005; // Friction
+            }
+
+            // Player movement
+            playerMesh.position.z -= speed;
+            playerMesh.position.x += tiltX;
+            if(playerMesh.position.x > 12) playerMesh.position.x = 12;
+            if(playerMesh.position.x < -12) playerMesh.position.x = -12;
+
+            // Camera follow
+            camera.position.z = playerMesh.position.z + 12;
+            camera.position.x = playerMesh.position.x * 0.7;
+            camera.lookAt(playerMesh.position);
+
+            // Opponent AI (5 Cars)
+            carList.forEach((opp, index) => {
+                opp.mesh.position.z -= (speed * opp.speed);
+                // Simple AI swerve
+                opp.mesh.position.x += Math.sin(Date.now() * 0.001 + index) * 0.03;
+            });
+
+            // UI update
+            document.getElementById('spd-num').innerText = Math.floor(speed * 210);
+
+            // Win Condition
+            if(playerMesh.position.z < -2500 - (level * 500)) {
+                isRacing = false;
+                alert(`YOU WON Level ${level}! Cash: +$${(level * 500)}`);
+                cash += (level * 500);
+                level++;
+                resetGame();
+            }
+        }
+        renderer.render(scene, camera);
+    }
+
+    updateMenu();
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        checkOrientation();
+    });
+</script>
+</body>
+</html>
