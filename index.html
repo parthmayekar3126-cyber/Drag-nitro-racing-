@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D Nitro Asphalt Clone</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; }
+        #ui { position: absolute; top: 10px; left: 10px; z-index: 10; pointer-events: none; }
+        .hud { background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; margin-bottom: 5px; border-left: 4px solid #f1c40f; }
+        
+        /* Story & Menu Overlay */
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #222, #000); 
+                display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; }
+        #story-box { max-width: 80%; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #444; }
+        h1 { color: #f1c40f; letter-spacing: 5px; text-shadow: 0 0 10px red; }
+        #btn-play { padding: 15px 50px; font-size: 20px; background: #e74c3c; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4); }
+        
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="hud" id="lvl-txt">MISSION: 1/200</div>
+    <div class="hud" id="coin-txt">CASH: $0</div>
+    <div class="hud" id="spd-txt">0 KM/H</div>
+</div>
+
+<div id="menu">
+    <h1 id="mission-title">LEVEL 1: NEON STREETS</h1>
+    <div id="story-box">
+        <p id="story-text">Loading mission brief...</p>
+    </div>
+    <button id="btn-play">START ENGINE</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    // --- 3D Engine Setup ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Light
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(0, 10, 10);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x404040));
+
+    // Road (3D Plane)
+    const roadGeo = new THREE.PlaneGeometry(20, 2000);
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    const road = new THREE.Mesh(roadGeo, roadMat);
+    road.rotation.x = -Math.PI / 2;
+    scene.add(road);
+
+    // Player Car (Simple 3D Box for now)
+    const carGeo = new THREE.BoxGeometry(1, 0.5, 2);
+    const carMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+    const playerCar = new THREE.Mesh(carGeo, carMat);
+    playerCar.position.y = 0.25;
+    playerCar.position.z = -5;
+    scene.add(playerCar);
+
+    camera.position.set(0, 3, 5);
+    camera.lookAt(playerCar.position);
+
+    // --- Game Logic ---
+    let level = 1;
+    let cash = 0;
+    let speed = 0;
+    let isRacing = false;
+    let tiltX = 0;
+
+    const stories = [
+        "Mission 1: Sheher ke underground racing world mein tumhara swagat hai. Jeeto aur naam kamao!",
+        "Mission 2: Police tumhare peeche hai. 200 km/h se kam mat hona!",
+        "Mission 3: Robot racers ne sheher block kar diya hai. Inhe harane par hi agla rasta khulega."
+    ];
+
+    function updateMenu() {
+        document.getElementById('mission-title').innerText = `LEVEL ${level}: START`;
+        document.getElementById('story-text').innerText = stories[level-1] || "Agla muqabla aur bhi khatarnak hai. Kya tum taiyaar ho?";
+        document.getElementById('lvl-txt').innerText = `MISSION: ${level}/200`;
+        document.getElementById('coin-txt').innerText = `CASH: $${cash}`;
+    }
+
+    // Motion Control
+    window.addEventListener('deviceorientation', (e) => {
+        tiltX = e.gamma / 20; // Mobile tilt sensetivity
+    });
+
+    document.getElementById('btn-play').onclick = () => {
+        document.getElementById('menu').style.display = 'none';
+        isRacing = true;
+        speed = 0.5 + (level * 0.1);
+    };
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        if(isRacing) {
+            // Move road to create speed effect
+            road.position.z += speed;
+            if(road.position.z > 500) road.position.z = 0;
+
+            // Tilt movement
+            playerCar.position.x += tiltX;
+            if(playerCar.position.x > 4) playerCar.position.x = 4;
+            if(playerCar.position.x < -4) playerCar.position.x = -4;
+
+            camera.position.x = playerCar.position.x;
+
+            // Stats
+            document.getElementById('spd-txt').innerText = `${Math.floor(speed * 200)} KM/H`;
+
+            // Win Condition (Simulated for demo)
+            if(road.position.z > 400) {
+                isRacing = false;
+                cash += 500;
+                level++;
+                document.getElementById('menu').style.display = 'flex';
+                updateMenu();
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    updateMenu();
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
